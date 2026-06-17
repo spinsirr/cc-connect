@@ -62,6 +62,16 @@ type PlatformPromptInjector interface {
 	SetPlatformPrompt(prompt string)
 }
 
+// ThreadContextProvider is an optional interface for platforms that can supply
+// recent conversation/thread history for an inbound message. The engine prepends
+// the returned block to the prompt so the agent is aware of context it did not
+// itself receive (e.g. a Slack thread the bot was just @-mentioned into).
+// Implementations should return "" when there is no useful prior context, and
+// should be cheap/idempotent enough to call once per inbound message.
+type ThreadContextProvider interface {
+	ThreadContext(replyCtx any) string
+}
+
 // AgentSystemPrompt returns the system prompt fragment that informs agents about
 // cc-connect capabilities (cron scheduling, etc.).
 // The prompt is designed to be appended to the agent's existing system prompt.

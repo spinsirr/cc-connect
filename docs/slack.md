@@ -175,6 +175,8 @@ bot_token = "xoxb-xxxxxxx..."
 app_token = "xapp-xxxxxxx..."
 # require_mention = true                   # default true; see "Reply Gating" below
 # thread_require_explicit_mention = false  # default false; see "Reply Gating" below
+# thread_context = true                    # default true; see "Thread context" below
+# thread_context_max_messages = 30         # default 30; see "Thread context" below
 ```
 
 ### Token Reference
@@ -197,6 +199,26 @@ channel chatter between other people is ignored. Two options tune this:
 > If your Slack app subscribes to `message.channels` (not just `app_mention`),
 > `require_mention` is what stops the bot from replying to unrelated channel
 > messages.
+
+### Thread context
+
+When the bot is brought into a thread that already has discussion (e.g. someone
+`@`-mentions it partway through), the agent normally only sees the single message
+that triggered it — not the earlier thread messages it was never sent. To fix
+that, cc-connect fetches the thread's recent messages via `conversations.replies`
+and prepends them to the prompt as a labelled `[Thread context …]` block, so the
+agent understands what's being discussed before it replies.
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `thread_context` | `true` | Inject the thread's recent messages when the bot enters a thread. Set `false` to disable. |
+| `thread_context_max_messages` | `30` | Maximum number of prior messages to include (most recent, oldest-first). |
+
+Injection happens **once per thread per process** — follow-up turns in the same
+thread are skipped, since the agent already holds the context in its own session
+memory. The fetch fails open: any Slack API error just means no context block is
+added, never a dropped reply. Requires the bot token's `channels:history` /
+`groups:history` scopes (the same scopes Socket Mode message events already need).
 
 ---
 

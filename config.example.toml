@@ -676,6 +676,8 @@ level = "info" # debug, info, warn, error
 # app_token = "xapp-..."
 # require_mention = true                   # channels reply only when @-mentioned (DMs always); default true
 # thread_require_explicit_mention = false  # require @ on every msg even in joined threads; default false (auto-follow)
+# thread_context = true                    # when brought into a thread, prepend its recent messages to the agent prompt; default true
+# thread_context_max_messages = 30         # cap on prior thread messages injected; default 30
 
 # =============================================================================
 # Project 1 / 项目 1

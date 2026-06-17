@@ -45,6 +45,9 @@ type Platform struct {
 	channelNameCache             map[string]string
 	channelCacheMu               sync.RWMutex
 	userNameCache                sync.Map // userID -> display name
+	threadContext                bool     // inject recent thread history into the agent prompt
+	threadContextMax             int      // max prior messages to inject
+	threadContextSeen            sync.Map // key "channel:thread_ts"; threads already injected this process
 }
 
 func New(opts map[string]any) (core.Platform, error) {
@@ -72,6 +75,27 @@ func New(opts map[string]any) (core.Platform, error) {
 	// thread_require_explicit_mention (default false): disables thread auto-follow,
 	// so every channel/thread message needs an explicit @ even after the bot joins.
 	threadRequireExplicitMention, _ := opts["thread_require_explicit_mention"].(bool)
+	// thread_context (default true): when the bot is brought into a Slack thread,
+	// prepend the thread's recent messages to the agent prompt so it has context
+	// it did not itself receive (it only sees the message that triggered it).
+	// Set false to disable.
+	threadContext := true
+	if v, ok := opts["thread_context"].(bool); ok {
+		threadContext = v
+	}
+	// thread_context_max_messages (default 30): cap on prior messages injected.
+	// TOML integers may decode as int or int64 depending on the parser.
+	threadContextMax := defaultThreadContextMax
+	switch v := opts["thread_context_max_messages"].(type) {
+	case int:
+		if v > 0 {
+			threadContextMax = v
+		}
+	case int64:
+		if v > 0 {
+			threadContextMax = int(v)
+		}
+	}
 	return &Platform{
 		botToken:                     botToken,
 		appToken:                     appToken,
@@ -79,6 +103,8 @@ func New(opts map[string]any) (core.Platform, error) {
 		sessionScope:                 scope,
 		requireMention:               requireMention,
 		threadRequireExplicitMention: threadRequireExplicitMention,
+		threadContext:                threadContext,
+		threadContextMax:             threadContextMax,
 		channelNameCache:             make(map[string]string),
 	}, nil
 }
@@ -765,7 +791,9 @@ func (p *Platform) FormattingInstructions() string {
 - Blockquote: > text
 - Lists: use bullet (•) or numbered lists normally
 - Links: <url|display text>
-- Do NOT use ## headings — Slack does not render them. Use *bold text* on its own line instead.`
+- Do NOT use ## headings — Slack does not render them. Use *bold text* on its own line instead.
+
+When a message arrives in a thread you were just brought into, earlier thread messages may be prepended as a "[Thread context …]" block. Treat it as background to understand the discussion; reply only to the newest message below it.`
 }
 
 // StartTyping adds emoji reactions to the user's message as a heartbeat
